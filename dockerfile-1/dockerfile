@@ -1,0 +1,22 @@
+# build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 1) copiar solo csproj para cachear el restore
+COPY *.csproj ./
+
+# cache de NuGet (BuildKit)
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet restore
+
+# 2) copiar el resto del código
+COPY . .
+
+# publish usando el mismo cache de NuGet
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet publish -c Release -o /app /p:UseAppHost=false
+
+# runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app .
+ENTRYPOINT ["dotnet","HelloApi.dll"]
